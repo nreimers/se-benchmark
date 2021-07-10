@@ -71,9 +71,9 @@ def main(model_names, eval_datasets, sample_k=10):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--models", nargs="+", help="List of model paths.", required=True)
+    parser.add_argument("-m", "--models", nargs="+", help="List of local model paths to run.", required=True)
     parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run. "
-                                                         "If not specified, all tests are run.", required=False)
+                                                         "If not specified, nfcorpus is run.", required=False)
     parser.add_argument("-k", type=int, help="K samples to display.", default=10, required=False)
     parser.add_argument("-o", "--output", help="Output logging file path.", required=False)
     args = parser.parse_args()
@@ -83,7 +83,6 @@ if __name__ == "__main__":
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.INFO,
                         handlers=[LoggingHandler()])
-    #### /print debug information to stdout
 
     # Log to file as well if argument is provided.
     if args.output is not None:
