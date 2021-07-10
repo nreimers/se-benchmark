@@ -10,11 +10,14 @@ from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
 import logging
 import pathlib, os
 import random
-import sys
 
 
 def main(eval_datasets, model_names, sample_k=10):
     print(eval_datasets)
+    if eval_datasets is None:
+        eval_datasets = ["arguana", "climate-fever", "cqadupstack", "dbpedia-entity", "fever", "fiqa", "germanquad",
+                         "hotpotqa", "msmarco", "nfcorpus", "nq-train", "nq", "quora", "scidocs", "scifact",
+                         "trec-covid-v2", "trec-covid", "webis-touche2020"]
 
     #### Just some code to print debug information to stdout
     logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -25,6 +28,8 @@ def main(eval_datasets, model_names, sample_k=10):
 
     # Setup BEIR
     for dataset in eval_datasets:
+        logging.info("Evaluating BEIR dataset : " + dataset)
+
         url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
         out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
         data_path = util.download_and_unzip(url, out_dir)
@@ -32,8 +37,6 @@ def main(eval_datasets, model_names, sample_k=10):
         corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
         # Loading Models
-        logging.info("System to evaluate: {}".format(len(sys.argv[1:])))
-
         for model_name in model_names:
             logging.info(model_name)
             try:
