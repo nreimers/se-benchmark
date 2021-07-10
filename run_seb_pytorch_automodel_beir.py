@@ -75,7 +75,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run. "
                                                          "If not specified, all tests are run.", required=False)
     parser.add_argument("-k", type=int, help="K samples to display.", default=10, required=False)
-    parser.add_argument("-o", "--output", help="Output logging file path.")
+    parser.add_argument("-o", "--output", help="Output logging file path.", required=False)
     args = parser.parse_args()
 
     #### Just some code to print debug information to stdout
@@ -89,4 +89,4 @@ if __name__ == "__main__":
     if args.output is not None:
         logging.getLogger().addHandler(FileHandler(args.output))
 
-    main(args.tests, args.models, args.k)
+    main(args.models, args.tests, args.k)
