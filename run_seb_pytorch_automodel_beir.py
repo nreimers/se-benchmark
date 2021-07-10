@@ -1,6 +1,6 @@
 import argparse
 
-from sentence_transformers import SentenceTransformer, LoggingHandler, models
+from sentence_transformers import SentenceTransformer, models
 from beir import util, LoggingHandler
 from beir.retrieval import models as beir_models
 from beir.datasets.data_loader import GenericDataLoader
@@ -8,23 +8,15 @@ from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
 
 import logging
+from logging import FileHandler
 import pathlib, os
 import random
 
 
-def main(eval_datasets, model_names, sample_k=10):
+def main(model_names, eval_datasets, sample_k=10):
     print(eval_datasets)
     if eval_datasets is None:
-        eval_datasets = ["arguana", "climate-fever", "cqadupstack", "dbpedia-entity", "fever", "fiqa", "germanquad",
-                         "hotpotqa", "msmarco", "nfcorpus", "nq-train", "nq", "quora", "scidocs", "scifact",
-                         "trec-covid-v2", "trec-covid", "webis-touche2020"]
-
-    #### Just some code to print debug information to stdout
-    logging.basicConfig(format='%(asctime)s - %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.INFO,
-                        handlers=[LoggingHandler()])
-    #### /print debug information to stdout
+        eval_datasets = ["nfcorpus"]
 
     # Setup BEIR
     for dataset in eval_datasets:
@@ -63,14 +55,11 @@ def main(eval_datasets, model_names, sample_k=10):
                 recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="recall_cap")
                 hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
 
-                # TODO : Parameterize
-                top_k = 10
-
                 query_id, ranking_scores = random.choice(list(results.items()))
                 scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
                 logging.info("Query : %s\n" % queries[query_id])
 
-                for rank in range(top_k):
+                for rank in range(sample_k):
                     doc_id = scores_sorted[rank][0]
                     # Format: Rank x: ID [Title] Body
                     logging.info(
@@ -85,6 +74,19 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--models", nargs="+", help="List of model paths.", required=True)
     parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run. "
                                                          "If not specified, all tests are run.", required=False)
+    parser.add_argument("-k", type=int, help="K samples to display.", default=10, required=False)
+    parser.add_argument("-o", "--output", help="Output logging file path.")
     args = parser.parse_args()
 
-    main(args.tests, args.models)
+    #### Just some code to print debug information to stdout
+    logging.basicConfig(format='%(asctime)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[LoggingHandler()])
+    #### /print debug information to stdout
+
+    # Log to file as well if argument is provided.
+    if args.output is not None:
+        logging.getLogger().addHandler(FileHandler(args.output))
+
+    main(args.tests, args.models, args.k)

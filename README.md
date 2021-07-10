@@ -22,6 +22,16 @@ When you have a full [sentence-transformers](https://www.sbert.net) model includ
 python run_seb_sbert.py /path/to/model
 ```
 
+## Run BEIR Evaluations
+
+Execute evaluations in [BEIR](https://github.com/UKPLab/beir) repository for the model trained with [se-pytorch-xla](https://github.com/nreimers/se-pytorch-xla).
+
+This code can run multiple models and multiple tests based on [BEIR datasets](https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/). 
+
+```
+python run_seb_pytorch_automodel_beir.py -m /path/to/model -t nfcorpus
+```
+
 ## Run TPU
 
 When you are on a TPU and have pytorch_xla installed, you can run:
