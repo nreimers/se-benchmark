@@ -1,3 +1,5 @@
+import argparse
+
 from sentence_transformers import SentenceTransformer, LoggingHandler, models
 from beir import util, LoggingHandler
 from beir.retrieval import models as beir_models
@@ -10,63 +12,78 @@ import pathlib, os
 import random
 import sys
 
-#### Just some code to print debug information to stdout
-logging.basicConfig(format='%(asctime)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S',
-                    level=logging.INFO,
-                    handlers=[LoggingHandler()])
-#### /print debug information to stdout
 
-# TODO : Support multiple datasets
-# Setup BEIR
-dataset = "nfcorpus"
+def main(eval_datasets, models, sample_k=10):
+    print(eval_datasets)
+    print(models)
 
-url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
-out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
-data_path = util.download_and_unzip(url, out_dir)
+    #### Just some code to print debug information to stdout
+    logging.basicConfig(format='%(asctime)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[LoggingHandler()])
+    #### /print debug information to stdout
 
-corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+    # TODO : Support multiple datasets
+    # Setup BEIR
+    dataset = "nfcorpus"
 
-# Loading Models
-logging.info("System to evaluate: {}".format(len(sys.argv[1:])))
+    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
+    out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
+    data_path = util.download_and_unzip(url, out_dir)
 
-for model_name in sys.argv[1:]:
-    logging.info(model_name)
-    try:
-        word = models.Transformer(model_name)
-        pool = models.Pooling(word.get_word_embedding_dimension())
-        norm = models.Normalize()
+    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-        model = SentenceTransformer(modules=[word, pool, norm])
+    # Loading Models
+    logging.info("System to evaluate: {}".format(len(sys.argv[1:])))
 
-        beir_model = beir_models.SentenceBERT()
-        beir_model.q_model = model
-        beir_model.doc_model = model
+    for model_name in sys.argv[1:]:
+        logging.info(model_name)
+        try:
+            word = models.Transformer(model_name)
+            pool = models.Pooling(word.get_word_embedding_dimension())
+            norm = models.Normalize()
 
-        # Testing Models
-        model = DRES(beir_model, batch_size=16)
-        retriever = EvaluateRetrieval(model, score_function="cos_sim")
+            model = SentenceTransformer(modules=[word, pool, norm])
 
-        results = retriever.retrieve(corpus, queries)
+            beir_model = beir_models.SentenceBERT()
+            beir_model.q_model = model
+            beir_model.doc_model = model
 
-        logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
-        ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
+            # Testing Models
+            model = DRES(beir_model, batch_size=16)
+            retriever = EvaluateRetrieval(model, score_function="cos_sim")
 
-        mrr = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="mrr")
-        recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="recall_cap")
-        hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
+            results = retriever.retrieve(corpus, queries)
 
-        # TODO : Parameterize
-        top_k = 10
+            logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
+            ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
 
-        query_id, ranking_scores = random.choice(list(results.items()))
-        scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
-        logging.info("Query : %s\n" % queries[query_id])
+            mrr = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="mrr")
+            recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="recall_cap")
+            hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
 
-        for rank in range(top_k):
-            doc_id = scores_sorted[rank][0]
-            # Format: Rank x: ID [Title] Body
-            logging.info(
-                "Rank %d: %s [%s] - %s\n" % (rank + 1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
-    except Exception as e:
-        print(e)
+            # TODO : Parameterize
+            top_k = 10
+
+            query_id, ranking_scores = random.choice(list(results.items()))
+            scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
+            logging.info("Query : %s\n" % queries[query_id])
+
+            for rank in range(top_k):
+                doc_id = scores_sorted[rank][0]
+                # Format: Rank x: ID [Title] Body
+                logging.info(
+                    "Rank %d: %s [%s] - %s\n" % (
+                        rank + 1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
+        except Exception as e:
+            print(e)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--models", nargs="+", help="List of model paths.", required=True)
+    parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run.", required=False)
+    args = parser.parse_args()
+
+    main(args.tests, args.models)
