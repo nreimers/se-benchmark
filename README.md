@@ -4,7 +4,7 @@ This code can be used to benchmark sentence embedding models.
 
 ## Requirements
 ```
-pip install sentence-transformers
+pip install sentence-transformers beir
 ```
 
 ## Run CPU & GPU
@@ -20,6 +20,16 @@ This code will run either on CPU or on GPU. Not on TPU.
 When you have a full [sentence-transformers](https://www.sbert.net) model including pooling layer etc., you can run:
 ```
 python run_seb_sbert.py /path/to/model
+```
+
+## Run BEIR Evaluations
+
+Execute evaluations in [BEIR](https://github.com/UKPLab/beir) repository for the model trained with [se-pytorch-xla](https://github.com/nreimers/se-pytorch-xla).
+
+This code can run multiple models and multiple tests based on [BEIR datasets](https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/).
+
+```
+python run_seb_pytorch_automodel_beir.py -m /path/to/model -t nfcorpus
 ```
 
 ## Run TPU
