@@ -13,9 +13,8 @@ import random
 import sys
 
 
-def main(eval_datasets, models, sample_k=10):
+def main(eval_datasets, model_names, sample_k=10):
     print(eval_datasets)
-    print(models)
 
     #### Just some code to print debug information to stdout
     logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -24,66 +23,65 @@ def main(eval_datasets, models, sample_k=10):
                         handlers=[LoggingHandler()])
     #### /print debug information to stdout
 
-    # TODO : Support multiple datasets
     # Setup BEIR
-    dataset = "nfcorpus"
+    for dataset in eval_datasets:
+        url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
+        out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
+        data_path = util.download_and_unzip(url, out_dir)
 
-    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
-    out_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "datasets")
-    data_path = util.download_and_unzip(url, out_dir)
+        corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+        # Loading Models
+        logging.info("System to evaluate: {}".format(len(sys.argv[1:])))
 
-    # Loading Models
-    logging.info("System to evaluate: {}".format(len(sys.argv[1:])))
+        for model_name in model_names:
+            logging.info(model_name)
+            try:
+                word = models.Transformer(model_name)
+                pool = models.Pooling(word.get_word_embedding_dimension())
+                norm = models.Normalize()
 
-    for model_name in sys.argv[1:]:
-        logging.info(model_name)
-        try:
-            word = models.Transformer(model_name)
-            pool = models.Pooling(word.get_word_embedding_dimension())
-            norm = models.Normalize()
+                model = SentenceTransformer(modules=[word, pool, norm])
 
-            model = SentenceTransformer(modules=[word, pool, norm])
+                beir_model = beir_models.SentenceBERT()
+                beir_model.q_model = model
+                beir_model.doc_model = model
 
-            beir_model = beir_models.SentenceBERT()
-            beir_model.q_model = model
-            beir_model.doc_model = model
+                # Testing Models
+                model = DRES(beir_model, batch_size=16)
+                retriever = EvaluateRetrieval(model, score_function="cos_sim")
 
-            # Testing Models
-            model = DRES(beir_model, batch_size=16)
-            retriever = EvaluateRetrieval(model, score_function="cos_sim")
+                results = retriever.retrieve(corpus, queries)
 
-            results = retriever.retrieve(corpus, queries)
+                logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
+                ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
 
-            logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
-            ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
+                mrr = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="mrr")
+                recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="recall_cap")
+                hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
 
-            mrr = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="mrr")
-            recall_cap = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="recall_cap")
-            hole = retriever.evaluate_custom(qrels, results, retriever.k_values, metric="hole")
+                # TODO : Parameterize
+                top_k = 10
 
-            # TODO : Parameterize
-            top_k = 10
+                query_id, ranking_scores = random.choice(list(results.items()))
+                scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
+                logging.info("Query : %s\n" % queries[query_id])
 
-            query_id, ranking_scores = random.choice(list(results.items()))
-            scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
-            logging.info("Query : %s\n" % queries[query_id])
-
-            for rank in range(top_k):
-                doc_id = scores_sorted[rank][0]
-                # Format: Rank x: ID [Title] Body
-                logging.info(
-                    "Rank %d: %s [%s] - %s\n" % (
-                        rank + 1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
-        except Exception as e:
-            print(e)
+                for rank in range(top_k):
+                    doc_id = scores_sorted[rank][0]
+                    # Format: Rank x: ID [Title] Body
+                    logging.info(
+                        "Rank %d: %s [%s] - %s\n" % (
+                            rank + 1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
+            except Exception as e:
+                print(e)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--models", nargs="+", help="List of model paths.", required=True)
-    parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run.", required=False)
+    parser.add_argument("-t", "--tests", nargs="*", help="List of BEIR tests to run. "
+                                                         "If not specified, all tests are run.", required=False)
     args = parser.parse_args()
 
     main(args.tests, args.models)
