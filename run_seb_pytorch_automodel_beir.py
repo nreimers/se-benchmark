@@ -13,7 +13,7 @@ import pathlib, os
 import random
 
 
-def main(model_names, eval_datasets, sample_k=10, asymmetric_mode=False):
+def main(model_names, eval_datasets, sample_k=10, asymmetric_mode=False, normalize=True, pooling='mean'):
     print(eval_datasets)
     if eval_datasets is None:
         eval_datasets = ["nfcorpus"]
@@ -36,14 +36,22 @@ def main(model_names, eval_datasets, sample_k=10, asymmetric_mode=False):
                 a_model = model_names[1]
 
                 q_word = models.Transformer(q_model)
-                q_pool = models.Pooling(q_word.get_word_embedding_dimension())
-                q_norm = models.Normalize()
-                q_model = SentenceTransformer(modules=[q_word, q_pool, q_norm])
+                q_modules = [q_word]
+                q_pool = models.Pooling(q_word.get_word_embedding_dimension(), pooling_mode=pooling)
+                q_modules.append(q_pool)
+                if normalize:
+                    q_norm = models.Normalize()
+                    q_modules.append(q_norm)
+                q_model = SentenceTransformer(modules=q_modules)
 
                 a_word = models.Transformer(a_model)
-                a_pool = models.Pooling(a_word.get_word_embedding_dimension())
-                a_norm = models.Normalize()
-                a_model = SentenceTransformer(modules=[a_word, a_pool, a_norm])
+                a_modules = [a_word]
+                a_pool = models.Pooling(a_word.get_word_embedding_dimension(), pooling_mode=pooling)
+                a_modules.append(a_pool)
+                if normalize:
+                    a_norm = models.Normalize()
+                    a_modules.append(a_norm)
+                a_model = SentenceTransformer(modules=a_modules)
 
                 beir_model = beir_models.SentenceBERT()
                 beir_model.q_model = q_model
@@ -124,6 +132,8 @@ if __name__ == "__main__":
                                                          "If not specified, nfcorpus is run.", required=False)
     parser.add_argument("-k", type=int, help="K samples to display.", default=10, required=False)
     parser.add_argument("--asymmetric_mode", action="store_true", default=False, help="If set: Different Question / Answer models")
+    parser.add_argument('--no_normalize', action="store_true", default=False, help="If set: Embeddings are not normalized")
+    parser.add_argument('--pooling', default='mean')
     parser.add_argument("-o", "--output", help="Output logging file path.", required=False)
     args = parser.parse_args()
 
@@ -137,4 +147,4 @@ if __name__ == "__main__":
     if args.output is not None:
         logging.getLogger().addHandler(FileHandler(args.output))
 
-    main(args.models, args.tests, args.k, args.asymmetric_mode)
+    main(args.models, args.tests, args.k, args.asymmetric_mode, not args.no_normalize, args.pooling)
